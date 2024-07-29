@@ -3,12 +3,13 @@ package onePass
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/huiming23344/balanceapi/config"
 	"io"
 	"log"
 	"net/http"
+	"time"
 )
 
 type getFundJson struct {
@@ -24,7 +25,7 @@ type getFundResponse struct {
 	Data      string `json:"data"`
 }
 
-func getPay(uid int64, amount int64, uniqueId string) (int, error) {
+func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 	amt := float64(amount) / 100
 	data := getFundJson{
 		TransactionId: uniqueId,
@@ -34,14 +35,16 @@ func getPay(uid int64, amount int64, uniqueId string) (int, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Println(fmt.Sprintf("Error marshalling JSON: %s", err))
-		return 0, errors.New(fmt.Sprintf("Error marshalling JSON: %s", err))
+		ch <- 0
+		return
 	}
 	reqBody := bytes.NewBuffer(jsonData)
 	fmt.Println(string(jsonData))
 	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
 	if err != nil {
 		fmt.Println("Error creating request: ", err)
-		return 0, errors.New(fmt.Sprintf("Error creating request: %s", err))
+		ch <- 0
+		return
 	}
 	reqUuid := uuid.New().String()
 	req.Header.Set("Content-Type", "application/json")
@@ -53,7 +56,8 @@ func getPay(uid int64, amount int64, uniqueId string) (int, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error sending request: ", err)
-		return 0, errors.New(fmt.Sprintf("Error sending request: %s", err))
+		ch <- 0
+		return
 	}
 	defer resp.Body.Close()
 
@@ -61,30 +65,32 @@ func getPay(uid int64, amount int64, uniqueId string) (int, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response body: ", err)
-		return 0, errors.New(fmt.Sprintf("Error reading response body: %s", err))
+		ch <- 0
+		return
 	}
-
-	// 打印响应体
-	fmt.Println("Response status code:", resp.Status)
-	fmt.Println("Response body:", string(body))
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 504 {
-			return 1, errors.New(fmt.Sprintf("Request failed with status code: %d", resp.StatusCode))
+			ch <- 1
+			return
 		}
-		return 0, errors.New(fmt.Sprintf("Error getting fund: %s", resp.Status))
+		ch <- 0
+		return
 	}
 
 	var result getFundResponse
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		fmt.Println("Error unmarshalling json: ", err)
-		return 0, errors.New(fmt.Sprintf("Error unmarshalling json: %s", err))
+		ch <- 0
+		return
 	}
 	if result.RequestId != reqUuid {
-		return resp.StatusCode, errors.New(fmt.Sprintf("Error getting fund: %d %s", resp.StatusCode, string(body)))
+		ch <- 1
+		return
 	}
-	return result.Code, nil
+	ch <- result.Code
+	return
 }
 
 type Fund struct {
@@ -130,25 +136,34 @@ func initFunds(list []Fund) {
 }
 
 func getAllFund(uid int64) (int64, error) {
-
+	myConf, err := config.LoadConfig()
+	if err != nil {
+		fmt.Println("Error loading config: ", err)
+		return 0, err
+	}
+	config.SetGlobalConfig(myConf)
+	cfg := config.GlobalConfig()
 	var pre, ans int64 = 500000, 0
 	uniqueId := uuid.New().String()
+	timeOut := time.Duration(cfg.Server.RequestTimeOut) * time.Millisecond
 	for pre >= 1 {
-		code, err := getPay(uid, pre, uniqueId)
-		if err != nil {
-			if code == 1 {
+		ch := make(chan int)
+		go getPay(uid, pre, uniqueId, ch)
+		select {
+		case code := <-ch:
+			switch code {
+			case 200:
+				ans += pre
+				uniqueId = uuid.New().String()
+				continue
+			case 501:
+				pre = pre / 2
+				uniqueId = uuid.New().String()
+				continue
+			case 1:
 				continue
 			}
-			return 0, err
-		}
-		switch code {
-		case 200:
-			ans += pre
-			uniqueId = uuid.New().String()
-			continue
-		case 501:
-			pre = pre / 2
-			uniqueId = uuid.New().String()
+		case <-time.After(timeOut):
 			continue
 		}
 	}

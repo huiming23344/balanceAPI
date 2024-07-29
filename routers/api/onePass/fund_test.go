@@ -8,7 +8,9 @@ import (
 func TestGetPay(t *testing.T) {
 	var uid int64 = 600001
 	var amount int64 = 1
-	getPay(uid, amount, "aaaaa")
+	ch := make(chan int)
+	getPay(uid, amount, "aaaaa", ch)
+	fmt.Println(<-ch)
 }
 
 func TestGetAllFund(t *testing.T) {
@@ -23,7 +25,7 @@ func TestGetAllFund(t *testing.T) {
 		},
 	}
 	initFunds(iF)
-	ans, _ := getAllFund(600002)
+	ans, _ := getAllFund(600001)
 	fmt.Println(ans)
 }
 
