@@ -15,6 +15,7 @@ func main() {
 	if err != nil {
 		panic("load config fail: " + err.Error())
 	}
+	config.SetGlobalConfig(cfg)
 
 	s := &http.Server{
 		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),

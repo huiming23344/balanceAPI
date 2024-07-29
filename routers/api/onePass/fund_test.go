@@ -25,7 +25,10 @@ func TestGetAllFund(t *testing.T) {
 		},
 	}
 	initFunds(iF)
-	ans, _ := getAllFund(600001)
+	ans, err := getAllFund(600004)
+	if err != nil {
+		fmt.Println(err)
+	}
 	fmt.Println(ans)
 }
 

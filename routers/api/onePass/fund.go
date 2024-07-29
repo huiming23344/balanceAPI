@@ -3,9 +3,9 @@ package onePass
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/huiming23344/balanceapi/config"
 	"io"
 	"log"
 	"net/http"
@@ -68,6 +68,8 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 		ch <- 0
 		return
 	}
+	fmt.Println("Response status code:", resp.Status)
+	fmt.Println("Response body:", string(body))
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 504 {
@@ -136,16 +138,11 @@ func initFunds(list []Fund) {
 }
 
 func getAllFund(uid int64) (int64, error) {
-	myConf, err := config.LoadConfig()
-	if err != nil {
-		fmt.Println("Error loading config: ", err)
-		return 0, err
-	}
-	config.SetGlobalConfig(myConf)
-	cfg := config.GlobalConfig()
+	//cfg := config.GlobalConfig()
 	var pre, ans int64 = 500000, 0
 	uniqueId := uuid.New().String()
-	timeOut := time.Duration(cfg.Server.RequestTimeOut) * time.Millisecond
+	// TODO: use timeout
+	//timeOut := time.Duration(cfg.Server.RequestTimeOut) * time.Millisecond
 	for pre >= 1 {
 		ch := make(chan int)
 		go getPay(uid, pre, uniqueId, ch)
@@ -162,8 +159,11 @@ func getAllFund(uid int64) (int64, error) {
 				continue
 			case 1:
 				continue
+			case 404:
+				return 0, errors.New(fmt.Sprintf("not found account by uid: %d", uid))
 			}
-		case <-time.After(timeOut):
+			// TODO: use config
+		case <-time.After(time.Duration(100) * time.Millisecond):
 			continue
 		}
 	}

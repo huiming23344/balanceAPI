@@ -10,7 +10,7 @@ import (
 var ServerConfigPath = defaultConfigPath
 
 const (
-	defaultConfigPath = "../../../app.yaml"
+	defaultConfigPath = "./app.yaml"
 )
 
 // serverConfigPath 获取服务启动的配置文件
