@@ -2,7 +2,11 @@ module github.com/huiming23344/balanceapi
 
 go 1.20
 
-require github.com/gin-gonic/gin v1.10.0
+require (
+	github.com/gin-gonic/gin v1.10.0
+	github.com/google/uuid v1.6.0
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
@@ -30,5 +34,4 @@ require (
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
