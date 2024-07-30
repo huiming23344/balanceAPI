@@ -2,6 +2,7 @@ package onePass
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,73 +26,82 @@ type getFundResponse struct {
 	Data      string `json:"data"`
 }
 
-func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
-	amt := float64(amount) / 100
-	data := getFundJson{
-		TransactionId: uniqueId,
-		Uid:           uid,
-		Amount:        amt,
-	}
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		log.Println(fmt.Sprintf("Error marshalling JSON: %s", err))
-		ch <- 0
-		return
-	}
-	reqBody := bytes.NewBuffer(jsonData)
-	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
-	if err != nil {
-		fmt.Println("Error creating request: ", err)
-		ch <- 0
-		return
-	}
-	reqUuid := uuid.New().String()
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
-	req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
-
-	// 发起请求
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Error sending request: ", err)
-		ch <- 0
-		return
-	}
-	defer resp.Body.Close()
-
-	// 读取响应体
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading response body: ", err)
-		ch <- 0
-		return
-	}
-	fmt.Println("Response status code:", resp.Status)
-	fmt.Println("Response body:", string(body))
-
-	if resp.StatusCode != 200 {
-		if resp.StatusCode == 504 {
+func getPay(uid int64, amount int64, uniqueId string, ctx context.Context, ch chan int) {
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("timeout")
 			ch <- 1
 			return
-		}
-		ch <- 0
-		return
-	}
+		default:
+			amt := float64(amount) / 100
+			data := getFundJson{
+				TransactionId: uniqueId,
+				Uid:           uid,
+				Amount:        amt,
+			}
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				log.Println(fmt.Sprintf("Error marshalling JSON: %s", err))
+				ch <- 0
+				return
+			}
+			reqBody := bytes.NewBuffer(jsonData)
+			req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
+			if err != nil {
+				fmt.Println("Error creating request: ", err)
+				ch <- 0
+				return
+			}
+			reqUuid := uuid.New().String()
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
+			req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
 
-	var result getFundResponse
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error unmarshalling json: ", err)
-		ch <- 0
-		return
+			// 发起请求
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Println("Error sending request: ", err)
+				ch <- 0
+				return
+			}
+			defer resp.Body.Close()
+
+			// 读取响应体
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("Error reading response body: ", err)
+				ch <- 0
+				return
+			}
+			//fmt.Println("Response status code:", resp.Status)
+			//fmt.Println("Response body:", string(body))
+
+			if resp.StatusCode != 200 {
+				if resp.StatusCode == 504 {
+					ch <- 1
+					return
+				}
+				ch <- 0
+				return
+			}
+
+			var result getFundResponse
+			err = json.Unmarshal(body, &result)
+			if err != nil {
+				fmt.Println("Error unmarshalling json: ", err)
+				ch <- 0
+				return
+			}
+			if result.RequestId != reqUuid {
+				ch <- 1
+				return
+			}
+			ch <- result.Code
+			return
+		}
 	}
-	if result.RequestId != reqUuid {
-		ch <- 1
-		return
-	}
-	ch <- result.Code
-	return
 }
 
 type Fund struct {
@@ -144,26 +154,32 @@ func getAllFund(uid int64) (int64, error) {
 	//timeOut := time.Duration(cfg.Server.RequestTimeOut) * time.Millisecond
 	for pre >= 1 {
 		ch := make(chan int)
-		go getPay(uid, pre, uniqueId, ch)
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		go getPay(uid, pre, uniqueId, ctx, ch)
 		select {
 		case code := <-ch:
 			switch code {
 			case 200:
 				ans += pre
+				//fmt.Printf("uid: %d, ans added pre is %d code 200 \n ", uid, pre)
 				uniqueId = uuid.New().String()
 				continue
 			case 501:
 				pre = pre / 2
+				//fmt.Printf("uid: %d, try pre: %d code 501 \n ", uid, pre)
 				uniqueId = uuid.New().String()
 				continue
 			case 1:
 				continue
+			case 500001:
+				fmt.Println("timeout")
+				continue
 			case 404:
 				return 0, errors.New(fmt.Sprintf("not found account by uid: %d", uid))
+			default:
+				return 0, errors.New(fmt.Sprintf("get fund error, uid: %d, amount: %d", uid, pre))
 			}
-			// TODO: use config
-		case <-time.After(time.Duration(100) * time.Millisecond):
-			continue
 		}
 	}
 	return ans, nil

@@ -1,15 +1,19 @@
 package onePass
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestGetPay(t *testing.T) {
 	var uid int64 = 600001
 	var amount int64 = 1
 	ch := make(chan int)
-	getPay(uid, amount, "aaaaa", ch)
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+	getPay(uid, amount, "aaaaa", ctx, ch)
 	fmt.Println(<-ch)
 }
 

@@ -1,5 +1,5 @@
 # BalanceAPI
-
+[![wakatime](https://wakatime.com/badge/user/2a98216d-462c-465e-b3a8-fcfb22e79aac/project/0da5d80c-4904-487d-86c6-79bfc06c51df.svg)](https://wakatime.com/badge/user/2a98216d-462c-465e-b3a8-fcfb22e79aac/project/0da5d80c-4904-487d-86c6-79bfc06c51df)
 
 
 ## Benchmarks

@@ -16,9 +16,8 @@ type MMap struct {
 }
 
 func NewMMapEngine() *MMap {
-	mp := sync.Map{}
 	return &MMap{
-		uidMap: mp,
+		uidMap: sync.Map{},
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/huiming23344/balanceapi/db"
 	"github.com/huiming23344/balanceapi/uuidCache"
 	"io"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -81,7 +82,8 @@ func UserTrade(c *gin.Context) {
 		})
 		return
 	}
-	err := db.Transfer(body.SourceUid, body.TargetUid, int64(body.Amount*100))
+	amount := int64(math.Round(body.Amount * 100))
+	err := db.Transfer(body.SourceUid, body.TargetUid, amount)
 	if err != nil {
 		c.JSON(400, gin.H{
 			"error": err.Error(),
@@ -170,21 +172,7 @@ func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context)
 }
 
 func doBatchPay(body batchPayJson) {
-	// TODO: make sure each batchPayId will only do once
-	wg := sync.WaitGroup{}
-	for _, uid := range body.Uids {
-		wg.Add(1)
-		go func(uid int64) {
-			amount, err := getAllFund(uid)
-			if err != nil {
-				wg.Done()
-				return
-			}
-			db.AddMoney(uid, amount)
-			wg.Done()
-		}(uid)
-	}
-	wg.Wait()
+	payFunds(body.Uids)
 	// call batchPayFinish when all user finish
 	ch := make(chan int)
 	uniqueId := uuid.New().String()
@@ -203,4 +191,23 @@ func doBatchPay(body batchPayJson) {
 			}
 		}
 	}
+}
+
+func payFunds(uids []int64) {
+	wg := sync.WaitGroup{}
+	for _, uid := range uids {
+		wg.Add(1)
+		go func(uid int64) {
+			amount, err := getAllFund(uid)
+			if err != nil {
+				wg.Done()
+				return
+			}
+			start := time.Now()
+			db.AddMoney(uid, amount)
+			fmt.Println("uid:", uid, "add money:", amount, "use time:", time.Since(start))
+			wg.Done()
+		}(uid)
+	}
+	wg.Wait()
 }
