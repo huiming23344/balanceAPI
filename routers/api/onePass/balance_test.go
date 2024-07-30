@@ -1,6 +1,11 @@
 package onePass
 
-import "testing"
+import (
+	"encoding/json"
+	"log"
+	"os"
+	"testing"
+)
 
 func TestBatchPay(t *testing.T) {
 	iF := []Fund{
@@ -16,6 +21,23 @@ func TestBatchPay(t *testing.T) {
 			Uid:    403131,
 			Amount: 2345.35,
 		},
+		{
+			Uid:    100052,
+			Amount: 88.93,
+		},
+	}
+	initFunds(iF)
+}
+
+func TestBatchPayFromFile(t *testing.T) {
+	iF := []Fund{}
+	jsonData, err := os.ReadFile("../../../testfile/initFund100.json")
+	if err != nil {
+		log.Fatalf("Error reading JSON file: %s", err)
+	}
+	err = json.Unmarshal(jsonData, &iF)
+	if err != nil {
+		log.Fatalf("Error unmarshalling JSON: %s", err)
 	}
 	initFunds(iF)
 }

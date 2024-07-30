@@ -19,7 +19,27 @@ type batchPayJson struct {
 	Uids       []int64 `json:"uids"`
 }
 
+type queryUserAmountResponse struct {
+	Code      int    `json:"code"`
+	Msg       string `json:"msg"`
+	RequestID string `json:"requestId"`
+	Data      []Fund `json:"data"`
+}
+
+type finishJson struct {
+	BatchPayId string `json:"batchPayId"`
+}
+
+type userTradeJson struct {
+	SourceUid int64   `json:"sourceUid"`
+	TargetUid int64   `json:"targetUid"`
+	Amount    float64 `json:"amount"`
+}
+
+var timeStart time.Time
+
 func BatchPay(c *gin.Context) {
+	timeStart = time.Now()
 	var body batchPayJson
 	if err := c.ShouldBind(&body); err != nil {
 		// 如果解析失败，返回错误信息。
@@ -39,21 +59,28 @@ func BatchPay(c *gin.Context) {
 }
 
 func UserTrade(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
+	// TODO: make sure each requestId will only do once
+	var body userTradeJson
+	if err := c.ShouldBind(&body); err != nil {
+		// 如果解析失败，返回错误信息。
+		c.JSON(400, gin.H{
+			"error": "Invalid JSON",
+		})
+		return
+	}
+	err := db.Transfer(body.SourceUid, body.TargetUid, int64(body.Amount*100))
+	if err != nil {
+		c.JSON(400, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	c.JSON(200, gin.H{
+		"msg":       "ok",
+		"code":      200,
+		"requestId": c.Request.Header.Get("X-KSY-REQUEST-ID"),
 	})
-}
-
-type queryUserAmountResponse struct {
-	Code      int                   `json:"code"`
-	Msg       string                `json:"msg"`
-	RequestID string                `json:"requestId"`
-	Data      []queryUserAmountData `json:"data"`
-}
-
-type queryUserAmountData struct {
-	Uid    int64   `json:"uid"`
-	Amount float64 `json:"amount"`
+	return
 }
 
 func QueryUserAmount(c *gin.Context) {
@@ -65,13 +92,13 @@ func QueryUserAmount(c *gin.Context) {
 		})
 		return
 	}
-	var data []queryUserAmountData
+	var data []Fund
 	for _, uid := range body {
 		amount, err := db.GetBalance(uid)
 		if err != nil {
 			amount = 0
 		}
-		data = append(data, queryUserAmountData{
+		data = append(data, Fund{
 			Uid:    uid,
 			Amount: float64(amount) / 100,
 		})
@@ -83,10 +110,6 @@ func QueryUserAmount(c *gin.Context) {
 		Data:      data,
 	})
 	return
-}
-
-type finishJson struct {
-	BatchPayId string `json:"batchPayId"`
 }
 
 func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context) {
@@ -149,9 +172,8 @@ func doBatchPay(body batchPayJson) {
 		}(uid)
 	}
 	wg.Wait()
-	fmt.Println(db.GetAllBalance())
+	// call batchPayFinish when all user finish
 	ch := make(chan int)
-
 	uniqueId := uuid.New().String()
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
 	defer cancel() // 确保在函数退出时取消上下文
@@ -161,6 +183,7 @@ func doBatchPay(body batchPayJson) {
 		case code := <-ch:
 			switch code {
 			case 200:
+				fmt.Printf("use time: %v\n", time.Since(timeStart))
 				return
 			default:
 				continue
