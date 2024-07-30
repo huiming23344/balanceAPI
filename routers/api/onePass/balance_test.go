@@ -31,7 +31,7 @@ func TestBatchPay(t *testing.T) {
 
 func TestBatchPayFromFile(t *testing.T) {
 	iF := []Fund{}
-	jsonData, err := os.ReadFile("../../../testfile/initFund100.json")
+	jsonData, err := os.ReadFile("../../../testfile/initFund1000.json")
 	if err != nil {
 		log.Fatalf("Error reading JSON file: %s", err)
 	}

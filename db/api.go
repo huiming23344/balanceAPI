@@ -4,7 +4,6 @@ type engine interface {
 	addMoney(uid int64, amount int64)
 	getBalance(uid int64) (int64, error)
 	transfer(from, to, amount int64) error
-	getAllBalance() map[int64]int64
 }
 
 var myEngine engine
@@ -24,8 +23,4 @@ func GetBalance(uid int64) (int64, error) {
 
 func Transfer(from, to, amount int64) error {
 	return myEngine.transfer(from, to, amount)
-}
-
-func GetAllBalance() map[int64]int64 {
-	return myEngine.getAllBalance()
 }

@@ -12,19 +12,21 @@ type balanceAccount struct {
 }
 
 type MMap struct {
-	uidMap map[int64]*balanceAccount
+	uidMap sync.Map
 }
 
 func NewMMapEngine() *MMap {
+	mp := sync.Map{}
 	return &MMap{
-		uidMap: make(map[int64]*balanceAccount),
+		uidMap: mp,
 	}
 }
 
 // Add will add balance to uid account
 // if account do not exist just add a new account
 func (m *MMap) addMoney(uid int64, amount int64) {
-	if account, ok := m.uidMap[uid]; ok {
+	if account, ok := m.uidMap.Load(uid); ok {
+		account := account.(*balanceAccount)
 		account.RwMutex.Lock()
 		account.Balance += amount
 		account.RwMutex.Unlock()
@@ -34,12 +36,13 @@ func (m *MMap) addMoney(uid int64, amount int64) {
 			Balance: amount,
 			RwMutex: sync.RWMutex{},
 		}
-		m.uidMap[uid] = account
+		m.uidMap.Store(uid, account)
 	}
 }
 
 func (m *MMap) getBalance(uid int64) (int64, error) {
-	if account, ok := m.uidMap[uid]; ok {
+	if account, ok := m.uidMap.Load(uid); ok {
+		account := account.(*balanceAccount)
 		account.RwMutex.RLock()
 		defer account.RwMutex.RUnlock()
 		return account.Balance, nil
@@ -51,7 +54,8 @@ func (m *MMap) getBalance(uid int64) (int64, error) {
 
 // Transfer will transfer amount from 'from' account to 'to' account
 func (m *MMap) transfer(from, to, amount int64) error {
-	if fromAccount, ok := m.uidMap[from]; ok {
+	if fromAccount, ok := m.uidMap.Load(from); ok {
+		fromAccount := fromAccount.(*balanceAccount)
 		fromAccount.RwMutex.Lock()
 		defer fromAccount.RwMutex.Unlock()
 		if fromAccount.Balance < amount {
@@ -62,7 +66,8 @@ func (m *MMap) transfer(from, to, amount int64) error {
 		return errors.New("can not find the account")
 	}
 
-	if toAccount, ok := m.uidMap[to]; ok {
+	if toAccount, ok := m.uidMap.Load(to); ok {
+		toAccount := toAccount.(*balanceAccount)
 		toAccount.RwMutex.Lock()
 		defer toAccount.RwMutex.Unlock()
 		toAccount.Balance += amount
@@ -70,14 +75,4 @@ func (m *MMap) transfer(from, to, amount int64) error {
 		return errors.New("can not find the account")
 	}
 	return nil
-}
-
-func (m *MMap) getAllBalance() map[int64]int64 {
-	balanceMap := make(map[int64]int64)
-	for uid, account := range m.uidMap {
-		account.RwMutex.RLock()
-		balanceMap[uid] = account.Balance
-		account.RwMutex.RUnlock()
-	}
-	return balanceMap
 }
