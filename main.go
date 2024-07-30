@@ -22,7 +22,6 @@ func main() {
 		Handler:        router,
 		MaxHeaderBytes: 1 << 20,
 	}
-
 	if err := s.ListenAndServe(); err != nil {
 		log.Printf("Listen: %s\n", err)
 	}

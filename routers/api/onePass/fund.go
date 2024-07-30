@@ -39,7 +39,6 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 		return
 	}
 	reqBody := bytes.NewBuffer(jsonData)
-	fmt.Println(string(jsonData))
 	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
 	if err != nil {
 		fmt.Println("Error creating request: ", err)
@@ -68,8 +67,8 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 		ch <- 0
 		return
 	}
-	fmt.Println("Response status code:", resp.Status)
-	fmt.Println("Response body:", string(body))
+	//fmt.Println("Response status code:", resp.Status)
+	//fmt.Println("Response body:", string(body))
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 504 {

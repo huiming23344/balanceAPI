@@ -1,10 +1,17 @@
 package onePass
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/huiming23344/balanceapi/db"
+	"io"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type batchPayJson struct {
@@ -21,24 +28,14 @@ func BatchPay(c *gin.Context) {
 		})
 		return
 	}
-	// TODO: make sure a batchPayId will only do once
-	mp := map[int64]int64{}
-	wg := sync.WaitGroup{}
-	for _, uid := range body.Uids {
-		wg.Add(1)
-		go func(uid int64) {
-			amount, err := getAllFund(uid)
-			if err != nil {
-				wg.Done()
-				return
-			}
-			mp[uid] = amount
-			wg.Done()
-		}(uid)
-	}
-	wg.Wait()
-	fmt.Println(mp)
-	// TODO: call POST http://120.92.116.60/thirdpart/onePass/batchPayFinish
+	c.JSON(200, gin.H{
+		"msg":       "ok",
+		"code":      200,
+		"requestId": c.Request.Header.Get("X-KSY-REQUEST-ID"),
+	})
+
+	go doBatchPay(body)
+	return
 }
 
 func UserTrade(c *gin.Context) {
@@ -49,4 +46,88 @@ func UserTrade(c *gin.Context) {
 
 func QueryUserAmount(c *gin.Context) {
 
+}
+
+type finishJson struct {
+	BatchPayId string `json:"batchPayId"`
+}
+
+func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			ch <- 400
+			return
+		default:
+			data := finishJson{
+				BatchPayId: reqUuid,
+			}
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				fmt.Println("Error marshalling JSON: ", err)
+			}
+			reqBoday := bytes.NewBuffer(jsonData)
+			req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/batchPayFinish", reqBoday)
+			if err != nil {
+				fmt.Println("Error creating request: ", err)
+			}
+
+			req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
+			req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				fmt.Println("Error sending request: ", err)
+				ch <- 0
+				return
+			}
+			defer resp.Body.Close()
+			// 读取响应体
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("Error reading response body: ", err)
+				ch <- 0
+				return
+			}
+			ch <- resp.StatusCode
+			fmt.Println("Response status code:", resp.Status)
+			fmt.Println("Response body:", string(body))
+		}
+	}
+}
+
+func doBatchPay(body batchPayJson) {
+	// TODO: make sure each batchPayId will only do once
+	wg := sync.WaitGroup{}
+	for _, uid := range body.Uids {
+		wg.Add(1)
+		go func(uid int64) {
+			amount, err := getAllFund(uid)
+			if err != nil {
+				wg.Done()
+				return
+			}
+			db.AddMoney(uid, amount)
+			wg.Done()
+		}(uid)
+	}
+	wg.Wait()
+	fmt.Println(db.GetAllBalance())
+	ch := make(chan int)
+
+	uniqueId := uuid.New().String()
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel() // 确保在函数退出时取消上下文
+	for {
+		go batchPayFinish(uniqueId, body.BatchPayId, ch, ctx)
+		select {
+		case code := <-ch:
+			switch code {
+			case 200:
+				return
+			default:
+				continue
+			}
+		}
+	}
 }
