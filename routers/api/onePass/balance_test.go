@@ -90,10 +90,12 @@ func TestUserTrade(t *testing.T) {
 		uids = append(uids, f.Uid)
 	}
 
+	time2.Sleep(5 * time2.Second)
 	payFundsAPI(uids)
 	// transfer the funds
-	//transferFundsToOneAccount(iF)
-	//getFundAccount([]int64{100001})
+
+	transferFundsToOneAccount(iF)
+	getFundAccount([]int64{100001})
 }
 
 func getFundAccount(uids []int64) {
