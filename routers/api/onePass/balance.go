@@ -44,8 +44,45 @@ func UserTrade(c *gin.Context) {
 	})
 }
 
-func QueryUserAmount(c *gin.Context) {
+type queryUserAmountResponse struct {
+	Code      int                   `json:"code"`
+	Msg       string                `json:"msg"`
+	RequestID string                `json:"requestId"`
+	Data      []queryUserAmountData `json:"data"`
+}
 
+type queryUserAmountData struct {
+	Uid    int64   `json:"uid"`
+	Amount float64 `json:"amount"`
+}
+
+func QueryUserAmount(c *gin.Context) {
+	var body []int64
+	if err := c.ShouldBind(&body); err != nil {
+		// 如果解析失败，返回错误信息。
+		c.JSON(400, gin.H{
+			"error": "Invalid JSON",
+		})
+		return
+	}
+	var data []queryUserAmountData
+	for _, uid := range body {
+		amount, err := db.GetBalance(uid)
+		if err != nil {
+			amount = 0
+		}
+		data = append(data, queryUserAmountData{
+			Uid:    uid,
+			Amount: float64(amount) / 100,
+		})
+	}
+	c.JSON(200, queryUserAmountResponse{
+		Code:      200,
+		Msg:       "ok",
+		RequestID: c.Request.Header.Get("X-KSY-REQUEST-ID"),
+		Data:      data,
+	})
+	return
 }
 
 type finishJson struct {
@@ -60,7 +97,7 @@ func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context)
 			return
 		default:
 			data := finishJson{
-				BatchPayId: reqUuid,
+				BatchPayId: requestId,
 			}
 			jsonData, err := json.Marshal(data)
 			if err != nil {

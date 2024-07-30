@@ -19,7 +19,3 @@ func TestBatchPay(t *testing.T) {
 	}
 	initFunds(iF)
 }
-
-func TestBatchPayFinish(t *testing.T) {
-	batchPayFinish("aaaaaaa", "bnnnnaaaaaaan")
-}
