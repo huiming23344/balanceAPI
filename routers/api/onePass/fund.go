@@ -67,8 +67,8 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 		ch <- 0
 		return
 	}
-	//fmt.Println("Response status code:", resp.Status)
-	//fmt.Println("Response body:", string(body))
+	fmt.Println("Response status code:", resp.Status)
+	fmt.Println("Response body:", string(body))
 
 	if resp.StatusCode != 200 {
 		if resp.StatusCode == 504 {

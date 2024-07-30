@@ -22,7 +22,8 @@ func BatchPay() {
 }
 ```
 `testfile/ininFund100.json`, 100个账户数据 `use time: 1.2026825s`
-`testfile/ininFund1000.json`, 1000个账户数据 `use time: 1.5673455s`
+在超过500个用户数据时，服务端会返回成功的报文，但是不会注册账户，所以没有进行更多的测试。
+
 
 
 

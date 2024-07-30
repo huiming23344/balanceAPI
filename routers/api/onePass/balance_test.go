@@ -10,7 +10,7 @@ import (
 func TestBatchPay(t *testing.T) {
 	iF := []Fund{
 		{
-			Uid:    100032,
+			Uid:    100001,
 			Amount: 88.91,
 		},
 		{
@@ -31,7 +31,7 @@ func TestBatchPay(t *testing.T) {
 
 func TestBatchPayFromFile(t *testing.T) {
 	iF := []Fund{}
-	jsonData, err := os.ReadFile("../../../testfile/initFund1000.json")
+	jsonData, err := os.ReadFile("../../../testfile/initFund100.json")
 	if err != nil {
 		log.Fatalf("Error reading JSON file: %s", err)
 	}

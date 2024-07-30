@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/huiming23344/balanceapi/db"
+	"github.com/huiming23344/balanceapi/uuidCache"
 	"io"
 	"net/http"
 	"sync"
@@ -48,6 +49,12 @@ func BatchPay(c *gin.Context) {
 		})
 		return
 	}
+	if !uuidCache.CheckAndAddBatchPay(body.BatchPayId) {
+		c.JSON(400, gin.H{
+			"error": "batchPayId already exist",
+		})
+		return
+	}
 	c.JSON(200, gin.H{
 		"msg":       "ok",
 		"code":      200,
@@ -60,6 +67,12 @@ func BatchPay(c *gin.Context) {
 
 func UserTrade(c *gin.Context) {
 	// TODO: make sure each requestId will only do once
+	if !uuidCache.CheckAndAddTrade(c.Request.Header.Get("X-KSY-REQUEST-ID")) {
+		c.JSON(400, gin.H{
+			"error": "requestId already exist",
+		})
+		return
+	}
 	var body userTradeJson
 	if err := c.ShouldBind(&body); err != nil {
 		// 如果解析失败，返回错误信息。
