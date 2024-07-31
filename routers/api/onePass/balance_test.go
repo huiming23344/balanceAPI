@@ -39,13 +39,37 @@ func TestBatchPayFromFile(t *testing.T) {
 		log.Fatalf("Error unmarshalling JSON: %s", err)
 	}
 	initFunds(iF)
-	//// pay all funds
-	//uids := []int64{}
-	//for _, f := range iF {
-	//	uids = append(uids, f.Uid)
-	//}
-	//payFunds(uids)
+	// pay all funds
+	uids := []int64{}
+	for _, f := range iF {
+		uids = append(uids, f.Uid)
+	}
+	payFundsAPI(uids)
 	//fmt.Println(db.GetBalance(100002)) // 2302047
+}
+
+func TestUserTradeBig(t *testing.T) {
+	// init the funds
+	var iF []Fund
+	jsonData, err := os.ReadFile("../../../test-file/initBigFund100.json")
+	if err != nil {
+		log.Fatalf("Error reading JSON file: %s", err)
+	}
+	err = json.Unmarshal(jsonData, &iF)
+	if err != nil {
+		log.Fatalf("Error unmarshalling JSON: %s", err)
+	}
+	initFunds(iF)
+	// pay all funds
+	var uids []int64
+	for _, f := range iF {
+		uids = append(uids, f.Uid)
+	}
+	payFundsAPI(uids)
+	// transfer the funds
+	//time.Sleep(10 * time.Second)
+	//transferFundsToOneAccount(iF)
+	//getFundAccount([]int64{100001})
 }
 
 func TestUserTrade(t *testing.T) {
