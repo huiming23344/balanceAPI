@@ -17,7 +17,7 @@ func TestBatchPayOnce(t *testing.T) {
 	iF := []Fund{
 		{
 			Uid:    100001,
-			Amount: 36.73,
+			Amount: 100000000.53,
 		},
 	}
 	initFunds(iF)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/huiming23344/balanceapi/db"
@@ -178,6 +179,7 @@ func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context)
 
 func doBatchPay(body batchPayJson) {
 	payFunds(body.Uids)
+	fmt.Println("payFunds use time: ", time.Since(timeStart))
 	// call batchPayFinish when all user finish
 	ch := make(chan int)
 	uniqueId := uuid.New().String()

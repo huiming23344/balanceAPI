@@ -3,12 +3,12 @@ package onePass
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -31,6 +31,7 @@ type Fund struct {
 }
 
 func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
+	fmt.Printf("GETPAY uid: %d, amount: %d, uniqueID: %s\n", uid, amount, uniqueId)
 	amt := float64(amount) / 100
 	data := getFundJson{
 		TransactionId: uniqueId,
@@ -142,33 +143,63 @@ func initFunds(list []Fund) {
 
 func getAllFund(uid int64) (int64, error) {
 	//cfg := config.GlobalConfig()
+
 	var pre, ans int64 = 500000, 0
-	uniqueId := uuid.New().String()
+	fmt.Println("before get all one amount")
+	ans += getAllOneAmount(uid, int64(1000000), 100)
+
 	// TODO: use timeout
 	//timeOut := time.Duration(cfg.Server.RequestTimeOut) * time.Millisecond
 	for pre >= 1 {
+		ans += getAllOneAmount(uid, pre, 2)
+		pre /= 2
+	}
+	return ans, nil
+}
+
+func getAllOneAmount(uid, amount int64, maxParallel int) int64 {
+	ans := int64(0)
+	wg := sync.WaitGroup{}
+	for i := 0; i < maxParallel; i++ {
+		wg.Add(1)
+		go func() {
+			singalGet := singalGetPay(uid, amount)
+			fmt.Println("singalGet: ", singalGet)
+			ans += singalGet
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	return ans
+}
+
+func singalGetPay(uid, amount int64) int64 {
+	var ans int64 = 0
+	uniqueId := uuid.New().String()
+	flag := true
+	for flag {
 		ch := make(chan int)
-		go getPay(uid, pre, uniqueId, ch)
+		go getPay(uid, amount, uniqueId, ch)
 		select {
 		case code := <-ch:
+			fmt.Printf("code: %d\n", code)
 			switch code {
 			case 200:
-				ans += pre
+				ans += amount
 				uniqueId = uuid.New().String()
 				continue
 			case 501:
-				pre = pre / 2
-				uniqueId = uuid.New().String()
-				continue
+				return ans
 			case 1:
 				continue
 			case 404:
-				return 0, errors.New(fmt.Sprintf("not found account by uid: %d", uid))
+				return 0
 			}
 			// TODO: use config
 		case <-time.After(time.Duration(100) * time.Millisecond):
+			fmt.Println("timeout")
 			continue
 		}
 	}
-	return ans, nil
+	return 0
 }
