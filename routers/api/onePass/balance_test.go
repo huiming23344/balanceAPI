@@ -10,30 +10,8 @@ import (
 	"net/http"
 	"os"
 	"testing"
-	time2 "time"
+	"time"
 )
-
-func TestBatchPay(t *testing.T) {
-	iF := []Fund{
-		{
-			Uid:    100001,
-			Amount: 88.91,
-		},
-		{
-			Uid:    100042,
-			Amount: 10000.93,
-		},
-		{
-			Uid:    403131,
-			Amount: 2345.35,
-		},
-		{
-			Uid:    100052,
-			Amount: 88.93,
-		},
-	}
-	initFunds(iF)
-}
 
 func TestBatchPayOnce(t *testing.T) {
 	iF := []Fund{
@@ -43,7 +21,7 @@ func TestBatchPayOnce(t *testing.T) {
 		},
 	}
 	initFunds(iF)
-	uids := []int64{}
+	var uids []int64
 	for _, f := range iF {
 		uids = append(uids, f.Uid)
 	}
@@ -51,8 +29,8 @@ func TestBatchPayOnce(t *testing.T) {
 }
 
 func TestBatchPayFromFile(t *testing.T) {
-	iF := []Fund{}
-	jsonData, err := os.ReadFile("../../../testfile/initFund100.json")
+	var iF []Fund
+	jsonData, err := os.ReadFile("../../../test-file/initFund100.json")
 	if err != nil {
 		log.Fatalf("Error reading JSON file: %s", err)
 	}
@@ -70,12 +48,10 @@ func TestBatchPayFromFile(t *testing.T) {
 	//fmt.Println(db.GetBalance(100002)) // 2302047
 }
 
-var iF []Fund
-
 func TestUserTrade(t *testing.T) {
 	// init the funds
-	iF = []Fund{}
-	jsonData, err := os.ReadFile("../../../testfile/initFund100.json")
+	var iF []Fund
+	jsonData, err := os.ReadFile("../../../test-file/initFund100.json")
 	if err != nil {
 		log.Fatalf("Error reading JSON file: %s", err)
 	}
@@ -85,44 +61,15 @@ func TestUserTrade(t *testing.T) {
 	}
 	initFunds(iF)
 	// pay all funds
-	uids := []int64{}
+	var uids []int64
 	for _, f := range iF {
 		uids = append(uids, f.Uid)
 	}
-
-	time2.Sleep(5 * time2.Second)
 	payFundsAPI(uids)
 	// transfer the funds
-
+	time.Sleep(10 * time.Second)
 	transferFundsToOneAccount(iF)
-	getFundAccount([]int64{100001})
-}
-
-func getFundAccount(uids []int64) {
-	uniqueId := uuid.New().String()
-	jsonData, err := json.Marshal(uids)
-	if err != nil {
-		log.Fatalf("Error marshalling JSON: %s", err)
-	}
-	reqBody := bytes.NewBuffer(jsonData)
-	req, err := http.NewRequest("POST", "http://127.0.0.1:20004/onePass/queryUserAmount", reqBody)
-	if err != nil {
-		log.Fatalf("Error creating request: %s", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-KSY-REQUEST-ID", uniqueId)
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Error sending request: %s", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading response body: ", err)
-	}
-	fmt.Println("Response status code:", resp.Status)
-	fmt.Println("Response body:", string(body))
+	//getFundAccount([]int64{100001})
 }
 
 func payFundsAPI(uids []int64) {
@@ -147,7 +94,12 @@ func payFundsAPI(uids []int64) {
 	if err != nil {
 		log.Fatalf("Error sending request: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Fatalf("Error closing response body: %s", err)
+		}
+	}(resp.Body)
 	//body, err := io.ReadAll(resp.Body)
 	//if err != nil {
 	//	fmt.Println("Error reading response body: ", err)
@@ -157,7 +109,7 @@ func payFundsAPI(uids []int64) {
 }
 
 func transferFundsToOneAccount(funds []Fund) {
-	timeStart := time2.Now()
+	timeStart := time.Now()
 	// transfer the funds to one account
 	for _, f := range funds {
 		if f.Uid == 100001 {
@@ -168,7 +120,7 @@ func transferFundsToOneAccount(funds []Fund) {
 			log.Fatalf("Error transfering fund: %s", err)
 		}
 	}
-	fmt.Println("Transfer time: ", time2.Since(timeStart))
+	fmt.Println("Transfer time: ", time.Since(timeStart))
 }
 
 func transferApi(from, to int64, amount float64) error {
@@ -196,7 +148,12 @@ func transferApi(from, to int64, amount float64) error {
 		log.Fatalf("Error sending request: %s", err)
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Fatalf("Error closing response body: %s", err)
+		}
+	}(resp.Body)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response body: ", err)

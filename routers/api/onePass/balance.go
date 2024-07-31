@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/huiming23344/balanceapi/db"
 	"github.com/huiming23344/balanceapi/uuidCache"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"sync"
@@ -139,12 +139,12 @@ func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context)
 			}
 			jsonData, err := json.Marshal(data)
 			if err != nil {
-				fmt.Println("Error marshalling JSON: ", err)
+				log.Println("Error marshalling JSON: ", err)
 			}
 			reqBoday := bytes.NewBuffer(jsonData)
 			req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/batchPayFinish", reqBoday)
 			if err != nil {
-				fmt.Println("Error creating request: ", err)
+				log.Println("Error creating request: ", err)
 			}
 
 			req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
@@ -152,21 +152,26 @@ func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context)
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
-				fmt.Println("Error sending request: ", err)
+				log.Println("Error sending request: ", err)
 				ch <- 0
 				return
 			}
-			defer resp.Body.Close()
+			defer func(Body io.ReadCloser) {
+				err := Body.Close()
+				if err != nil {
+					log.Println("Error closing response body: ", err)
+				}
+			}(resp.Body)
 			// 读取响应体
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				fmt.Println("Error reading response body: ", err)
-				ch <- 0
-				return
-			}
-			ch <- resp.StatusCode
-			fmt.Println("Response status code:", resp.Status)
-			fmt.Println("Response body:", string(body))
+			//body, err := io.ReadAll(resp.Body)
+			//if err != nil {
+			//	log.Println("Error reading response body: ", err)
+			//	ch <- 0
+			//	return
+			//}
+			//ch <- resp.StatusCode
+			//log.Println("Response status code:", resp.Status)
+			//log.Println("Response body:", string(body))
 		}
 	}
 }
@@ -184,7 +189,7 @@ func doBatchPay(body batchPayJson) {
 		case code := <-ch:
 			switch code {
 			case 200:
-				fmt.Printf("use time: %v\n", time.Since(timeStart))
+				log.Printf("use time: %v\n", time.Since(timeStart))
 				return
 			default:
 				continue
@@ -205,7 +210,7 @@ func payFunds(uids []int64) {
 			}
 			start := time.Now()
 			db.AddMoney(uid, amount)
-			fmt.Println("uid:", uid, "add money:", amount, "use time:", time.Since(start))
+			log.Println("uid:", uid, "add money:", amount, "use time:", time.Since(start))
 			wg.Done()
 		}(uid)
 	}

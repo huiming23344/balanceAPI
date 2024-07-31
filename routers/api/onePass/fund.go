@@ -25,6 +25,11 @@ type getFundResponse struct {
 	Data      string `json:"data"`
 }
 
+type Fund struct {
+	Uid    int64   `json:"uid"`
+	Amount float64 `json:"amount"`
+}
+
 func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 	amt := float64(amount) / 100
 	data := getFundJson{
@@ -41,7 +46,7 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 	reqBody := bytes.NewBuffer(jsonData)
 	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
 	if err != nil {
-		fmt.Println("Error creating request: ", err)
+		log.Println("Error creating request: ", err)
 		ch <- 0
 		return
 	}
@@ -54,27 +59,26 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request: ", err)
+		log.Println("Error sending request: ", err)
 		ch <- 0
 		return
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Println("Error closing response body: ", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != 200 {
+		ch <- 1
+		return
+	}
 
 	// 读取响应体
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response body: ", err)
-		ch <- 0
-		return
-	}
-	fmt.Println("Response status code:", resp.Status)
-	fmt.Println("Response body:", string(body))
-
-	if resp.StatusCode != 200 {
-		if resp.StatusCode == 504 {
-			ch <- 1
-			return
-		}
+		log.Println("Error reading response body: ", err)
 		ch <- 0
 		return
 	}
@@ -82,7 +86,7 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 	var result getFundResponse
 	err = json.Unmarshal(body, &result)
 	if err != nil {
-		fmt.Println("Error unmarshalling json: ", err)
+		log.Println("Error unmarshalling json: ", err)
 		ch <- 0
 		return
 	}
@@ -94,21 +98,16 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 	return
 }
 
-type Fund struct {
-	Uid    int64   `json:"uid"`
-	Amount float64 `json:"amount"`
-}
-
 func initFunds(list []Fund) {
 	jsonData, err := json.Marshal(list)
 	if err != nil {
-		fmt.Println("Error marshalling JSON: ", err)
+		log.Println("Error marshalling JSON: ", err)
 	}
 	reqBody := bytes.NewBuffer(jsonData)
-	fmt.Println(string(jsonData))
+	log.Println(string(jsonData))
 	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/initAccount", reqBody)
 	if err != nil {
-		fmt.Println("Error creating request: ", err)
+		log.Println("Error creating request: ", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -119,21 +118,26 @@ func initFunds(list []Fund) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request: ", err)
+		log.Println("Error sending request: ", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Println("Error closing response body: ", err)
+		}
+	}(resp.Body)
 
 	// 读取响应体
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response body: ", err)
+		log.Println("Error reading response body: ", err)
 		return
 	}
 
 	// 打印响应体
-	fmt.Println("Response status code:", resp.Status)
-	fmt.Println("Response body:", string(body))
+	log.Println("Response status code:", resp.Status)
+	log.Println("Response body:", string(body))
 }
 
 func getAllFund(uid int64) (int64, error) {
