@@ -2,7 +2,6 @@ package onePass
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -128,53 +127,45 @@ func QueryUserAmount(c *gin.Context) {
 	return
 }
 
-func batchPayFinish(reqUuid, requestId string, ch chan int, ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			ch <- 400
-			return
-		default:
-			data := finishJson{
-				BatchPayId: requestId,
-			}
-			jsonData, err := json.Marshal(data)
-			if err != nil {
-				log.Println("Error marshalling JSON: ", err)
-			}
-			reqBoday := bytes.NewBuffer(jsonData)
-			req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/batchPayFinish", reqBoday)
-			if err != nil {
-				log.Println("Error creating request: ", err)
-			}
-
-			req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
-			req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Println("Error sending request: ", err)
-				ch <- 0
-				return
-			}
-			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					log.Println("Error closing response body: ", err)
-				}
-			}(resp.Body)
-			// 读取响应体
-			//body, err := io.ReadAll(resp.Body)
-			//if err != nil {
-			//	log.Println("Error reading response body: ", err)
-			//	ch <- 0
-			//	return
-			//}
-			//ch <- resp.StatusCode
-			//log.Println("Response status code:", resp.Status)
-			//log.Println("Response body:", string(body))
-		}
+func batchPayFinish(reqUuid, requestId string, ch chan int) {
+	data := finishJson{
+		BatchPayId: requestId,
 	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Println("Error marshalling JSON: ", err)
+	}
+	reqBoday := bytes.NewBuffer(jsonData)
+	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/batchPayFinish", reqBoday)
+	if err != nil {
+		log.Println("Error creating request: ", err)
+	}
+
+	req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
+	req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("Error sending request: ", err)
+		ch <- 0
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Println("Error closing response body: ", err)
+		}
+	}(resp.Body)
+	// 读取响应体
+	//body, err := io.ReadAll(resp.Body)
+	//if err != nil {
+	//	log.Println("Error reading response body: ", err)
+	//	ch <- 0
+	//	return
+	//}
+	//ch <- resp.StatusCode
+	//log.Println("Response status code:", resp.Status)
+	//log.Println("Response body:", string(body))
 }
 
 func doBatchPay(body batchPayJson) {
@@ -183,10 +174,8 @@ func doBatchPay(body batchPayJson) {
 	// call batchPayFinish when all user finish
 	ch := make(chan int)
 	uniqueId := uuid.New().String()
-	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
-	defer cancel() // 确保在函数退出时取消上下文
 	for {
-		go batchPayFinish(uniqueId, body.BatchPayId, ch, ctx)
+		go batchPayFinish(uniqueId, body.BatchPayId, ch)
 		select {
 		case code := <-ch:
 			switch code {
@@ -210,9 +199,7 @@ func payFunds(uids []int64) {
 				wg.Done()
 				return
 			}
-			start := time.Now()
 			db.AddMoney(uid, amount)
-			log.Println("uid:", uid, "add money:", amount, "use time:", time.Since(start))
 			wg.Done()
 		}(uid)
 	}

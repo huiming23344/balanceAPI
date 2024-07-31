@@ -10,7 +10,7 @@ import (
 
 func main() {
 	router := routers.InitRouter()
-
+	//pprof.Register(router)
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic("load config fail: " + err.Error())

@@ -16,6 +16,8 @@
 ### onePass/batchPay
 #### 单个大数据测试
 单个一亿的账户处理时间5s左右，`payFunds use time:  4.374602958s`
+
+单个十亿的账户处理时间50s左右，`payFunds use time:  50.013073s`
 ```go
 // 测试数据
 iF := []Fund{

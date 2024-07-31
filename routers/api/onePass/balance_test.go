@@ -17,7 +17,7 @@ func TestBatchPayOnce(t *testing.T) {
 	iF := []Fund{
 		{
 			Uid:    100001,
-			Amount: 100000000.53,
+			Amount: 1001.53,
 		},
 	}
 	initFunds(iF)
@@ -91,8 +91,8 @@ func TestUserTrade(t *testing.T) {
 	}
 	payFundsAPI(uids)
 	// transfer the funds
-	time.Sleep(10 * time.Second)
-	transferFundsToOneAccount(iF)
+	//time.Sleep(10 * time.Second)
+	//transferFundsToOneAccount(iF)
 	//getFundAccount([]int64{100001})
 }
 

@@ -1,7 +1,6 @@
 package onePass
 
 import (
-	"context"
 	"fmt"
 	"testing"
 )
@@ -10,8 +9,7 @@ func TestGetPay(t *testing.T) {
 	var uid int64 = 600001
 	var amount int64 = 1
 	ch := make(chan int)
-	ctx := context.Background()
-	getPay(uid, amount, "aaaaa", ctx, ch)
+	getPay(uid, amount, "aaaaa", ch)
 	fmt.Println(<-ch)
 }
 

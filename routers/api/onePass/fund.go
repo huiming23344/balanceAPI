@@ -2,7 +2,6 @@ package onePass
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -33,94 +32,74 @@ type Fund struct {
 
 var maxRequestParallel chan struct{} = make(chan struct{}, 100)
 
-func getPay(uid int64, amount int64, uniqueId string, ctx context.Context, ch chan int) {
-	maxRequestParallel <- struct{}{}
-	select {
-	case <-ctx.Done():
-		<-maxRequestParallel
-		ch <- 1
-		return
-	default:
-		fmt.Printf("get  maxRequestParallel now have: %d\n", len(maxRequestParallel))
-		fmt.Printf("GETPAY uid: %d, amount: %d, uniqueID: %s\n", uid, amount, uniqueId)
-		amt := float64(amount) / 100
-		data := getFundJson{
-			TransactionId: uniqueId,
-			Uid:           uid,
-			Amount:        amt,
-		}
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			log.Println(fmt.Sprintf("Error marshalling JSON: %s", err))
-			ch <- 0
-			fmt.Printf("return maxRequestParallel now have: %d\n", len(maxRequestParallel))
-			<-maxRequestParallel
+func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 
-			return
-		}
-		reqBody := bytes.NewBuffer(jsonData)
-		req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
-		if err != nil {
-			log.Println("Error creating request: ", err)
-			<-maxRequestParallel
-			fmt.Printf("return maxRequestParallel now have: %d\n", len(maxRequestParallel))
-			ch <- 0
-			return
-		}
-		reqUuid := uuid.New().String()
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
-		req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
-
-		// 发起请求
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Println("Error sending request: ", err)
-			<-maxRequestParallel
-			ch <- 0
-			return
-		}
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
-			if err != nil {
-				log.Println("Error closing response body: ", err)
-			}
-		}(resp.Body)
-
-		if resp.StatusCode != 200 {
-			<-maxRequestParallel
-			ch <- 1
-			return
-		}
-
-		// 读取响应体
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Println("Error reading response body: ", err)
-			<-maxRequestParallel
-			ch <- 0
-			return
-		}
-
-		var result getFundResponse
-		err = json.Unmarshal(body, &result)
-		if err != nil {
-			log.Println("Error unmarshalling json: ", err)
-			ch <- 0
-			<-maxRequestParallel
-			return
-		}
-		if result.RequestId != reqUuid {
-			ch <- 1
-			<-maxRequestParallel
-			return
-		}
-		ch <- result.Code
-		fmt.Printf("return maxRequestParallel now have: %d\n", len(maxRequestParallel))
-		<-maxRequestParallel
+	fmt.Printf("GETPAY uid: %d, amount: %d, uniqueID: %s\n", uid, amount, uniqueId)
+	amt := float64(amount) / 100
+	data := getFundJson{
+		TransactionId: uniqueId,
+		Uid:           uid,
+		Amount:        amt,
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Println(fmt.Sprintf("Error marshalling JSON: %s", err))
+		ch <- 0
 		return
 	}
+	reqBody := bytes.NewBuffer(jsonData)
+	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
+	if err != nil {
+		log.Println("Error creating request: ", err)
+		ch <- 0
+		return
+	}
+	reqUuid := uuid.New().String()
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-KSY-REQUEST-ID", reqUuid)
+	req.Header.Set("X-KSY-KINGSTAR-ID", "20004")
+
+	// 发起请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("Error sending request: ", err)
+		ch <- 0
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Println("Error closing response body: ", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != 200 {
+		ch <- 1
+		return
+	}
+
+	// 读取响应体
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("Error reading response body: ", err)
+		ch <- 0
+		return
+	}
+
+	var result getFundResponse
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		log.Println("Error unmarshalling json: ", err)
+		ch <- 0
+		return
+	}
+	if result.RequestId != reqUuid {
+		ch <- 1
+		return
+	}
+	ch <- result.Code
+	return
 }
 
 func initFunds(list []Fund) {
@@ -184,12 +163,20 @@ func getAllFund(uid int64) (int64, error) {
 func getAllOneAmount(uid, amount int64, maxParallel int) int64 {
 	ans := int64(0)
 	wg := sync.WaitGroup{}
-	for i := 0; i < maxParallel; i++ {
+	isDone := false
+	for i := 1; i <= maxParallel; i++ {
+		if isDone {
+			break
+		}
+		if maxParallel > 2 {
+			if i < 30 && i != 1 {
+				time.Sleep(time.Duration(10) * time.Millisecond)
+			}
+		}
 		wg.Add(1)
 		go func() {
-			singalGet := singalGetPay(uid, amount)
-			fmt.Println("singalGet: ", singalGet)
-			ans += singalGet
+			ans += singalGetPay(uid, amount)
+			isDone = true
 			wg.Done()
 		}()
 	}
@@ -200,15 +187,11 @@ func getAllOneAmount(uid, amount int64, maxParallel int) int64 {
 func singalGetPay(uid, amount int64) int64 {
 	var ans int64 = 0
 	uniqueId := uuid.New().String()
-	flag := true
-	for flag {
+	for {
 		ch := make(chan int)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go getPay(uid, amount, uniqueId, ctx, ch)
+		go getPay(uid, amount, uniqueId, ch)
 		select {
 		case code := <-ch:
-			fmt.Printf("code: %d\n", code)
 			switch code {
 			case 200:
 				ans += amount
@@ -224,10 +207,8 @@ func singalGetPay(uid, amount int64) int64 {
 			// TODO: use config
 		case <-time.After(time.Duration(800) * time.Millisecond):
 			//fmt.Println("timeout")
-			cancel()
 			<-ch
 			continue
 		}
 	}
-	return 0
 }
