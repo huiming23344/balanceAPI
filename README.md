@@ -7,10 +7,13 @@
   - map的value为读写锁保护的结构体，降低锁的粒度，保证并发读写的安全
 - payFund的每个账户都会开启一个goroutine进行处理
   - 对于每个开起的goroutine
-    - 对账户金额大于一万的部分开启100个goroutine进行快处理
+    - 使用channel控制全局worker的数量
+    - 根据账户的金额不同动态的调整goroutine的数量
     - 对于小于一万的部分，开启2个goroutine进行处理
-  - 使用`sync.WaitGroup`等待所有goroutine完成
-  - 使用`channel`进行goroutine之间的通信和超时控制，实现单次请求的超时快速重传
+
+## 性能分析
+通过Flame Graph进行性能分析，可以看到占用cpu时间较大的主要是两部分，`sync.Waitgroup`同步等待的时间和`runtime.kevent`主要是网络epoll的等待时间
+后续的性能优化可以考虑异步的方式进行处理，减少`sync.Waitgroup`的同步等待
 
 ## Benchmarks
 ### onePass/batchPay
@@ -69,25 +72,3 @@ func transferFundsToOneAccount(funds []Fund) {
 	fmt.Println("Transfer time: ", time.Since(timeStart))
 }
 ```
-
-## TODO
-### payFund数据异常
-
-不稳定复现
-
-在当前的getFund中，会出现数据多加5000的情况，也就是二分法第一个尝试会返回成功，7.30日22时以后出现问题，7.31早2时以后无问题，后续无法复现
-
-### 使用ctx的性能问题定位
-
-为什么使用ctx后，性能会下降？
-
-在 commit`86bc839fa0fb2bd6476a407f3f515fc35fa6db95` func`BatchPay`中，使用`ctx`后，性能会下降到30s左右
-
-#### 定位问题
-
-- 限制并发数量：只有在5个goroutine并发时才不会出现性能问题，但是因为并发度有限，时间还是在20s左右
-- 经过测试不是db并发读写锁导致的性能问题，db的一次读写只有不到1ms。
-- ctx的超时机制？在log中似乎观察到了ctx超时的情况，但没有退出goroutine的情况
-
-### 使用pprof进行性能分析
-
