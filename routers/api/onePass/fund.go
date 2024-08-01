@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/huiming23344/balanceapi/config"
 	"io"
 	"log"
 	"net/http"
@@ -30,11 +31,8 @@ type Fund struct {
 	Amount float64 `json:"amount"`
 }
 
-var maxRequestParallel chan struct{} = make(chan struct{}, 100)
-
 func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
-
-	fmt.Printf("GETPAY uid: %d, amount: %d, uniqueID: %s\n", uid, amount, uniqueId)
+	cfg := config.GlobalConfig()
 	amt := float64(amount) / 100
 	data := getFundJson{
 		TransactionId: uniqueId,
@@ -48,7 +46,8 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 		return
 	}
 	reqBody := bytes.NewBuffer(jsonData)
-	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/pay", reqBody)
+	url := cfg.Server.ServerAddr + "/thirdpart/onePass/pay"
+	req, err := http.NewRequest("POST", url, reqBody)
 	if err != nil {
 		log.Println("Error creating request: ", err)
 		ch <- 0
@@ -103,13 +102,16 @@ func getPay(uid int64, amount int64, uniqueId string, ch chan int) {
 }
 
 func initFunds(list []Fund) {
+	cfg := config.GlobalConfig()
 	jsonData, err := json.Marshal(list)
 	if err != nil {
 		log.Println("Error marshalling JSON: ", err)
 	}
 	reqBody := bytes.NewBuffer(jsonData)
 	log.Println(string(jsonData))
-	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/initAccount", reqBody)
+	url := cfg.Server.ServerAddr + "/thirdpart/onePass/initAccount"
+	fmt.Println(cfg.Server.ServerAddr)
+	req, err := http.NewRequest("POST", url, reqBody)
 	if err != nil {
 		log.Println("Error creating request: ", err)
 		return
@@ -148,8 +150,7 @@ func getAllFund(uid int64) (int64, error) {
 	//cfg := config.GlobalConfig()
 
 	var pre, ans int64 = 500000, 0
-	fmt.Println("before get all one amount")
-	ans += getAllOneAmount(uid, int64(1000000), 500)
+	ans += getAllOneAmount(uid, int64(1000000), 200)
 
 	// TODO: use timeout
 	//timeOut := time.Duration(cfg.Server.RequestTimeOut) * time.Millisecond
@@ -160,23 +161,27 @@ func getAllFund(uid int64) (int64, error) {
 	return ans, nil
 }
 
+var maxRequestParallel chan struct{} = make(chan struct{}, 200)
+
 func getAllOneAmount(uid, amount int64, maxParallel int) int64 {
 	ans := int64(0)
 	wg := sync.WaitGroup{}
 	isDone := false
-	for i := 1; i <= maxParallel; i++ {
+	for i := 1; i < maxParallel; i++ {
 		if isDone {
 			break
 		}
 		if maxParallel > 2 {
-			if i < 30 && i != 1 {
-				time.Sleep(time.Duration(10) * time.Millisecond)
+			if i < 30 {
+				time.Sleep(time.Duration(100) * time.Millisecond)
 			}
 		}
 		wg.Add(1)
+		maxRequestParallel <- struct{}{}
 		go func() {
 			ans += singalGetPay(uid, amount)
 			isDone = true
+			<-maxRequestParallel
 			wg.Done()
 		}()
 	}
@@ -205,7 +210,7 @@ func singalGetPay(uid, amount int64) int64 {
 				return 0
 			}
 			// TODO: use config
-		case <-time.After(time.Duration(800) * time.Millisecond):
+		case <-time.After(time.Duration(1) * time.Second):
 			//fmt.Println("timeout")
 			<-ch
 			continue

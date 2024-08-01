@@ -27,6 +27,7 @@ type Config struct {
 		Addr           string `yaml:"addr"`
 		Port           string `yaml:"port"`
 		RequestTimeOut int    `yaml:"request_timeout"`
+		ServerAddr     string `yaml:"server_addr"`
 	}
 }
 

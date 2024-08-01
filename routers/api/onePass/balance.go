@@ -3,9 +3,9 @@ package onePass
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/huiming23344/balanceapi/config"
 	"github.com/huiming23344/balanceapi/db"
 	"github.com/huiming23344/balanceapi/uuidCache"
 	"io"
@@ -128,6 +128,7 @@ func QueryUserAmount(c *gin.Context) {
 }
 
 func batchPayFinish(reqUuid, requestId string, ch chan int) {
+	cfg := config.GlobalConfig()
 	data := finishJson{
 		BatchPayId: requestId,
 	}
@@ -136,7 +137,8 @@ func batchPayFinish(reqUuid, requestId string, ch chan int) {
 		log.Println("Error marshalling JSON: ", err)
 	}
 	reqBoday := bytes.NewBuffer(jsonData)
-	req, err := http.NewRequest("POST", "http://120.92.116.60/thirdpart/onePass/batchPayFinish", reqBoday)
+	url := cfg.Server.ServerAddr + "/thirdpart/onePass/batchPayFinish"
+	req, err := http.NewRequest("POST", url, reqBoday)
 	if err != nil {
 		log.Println("Error creating request: ", err)
 	}
@@ -156,21 +158,19 @@ func batchPayFinish(reqUuid, requestId string, ch chan int) {
 			log.Println("Error closing response body: ", err)
 		}
 	}(resp.Body)
-	// 读取响应体
-	//body, err := io.ReadAll(resp.Body)
-	//if err != nil {
-	//	log.Println("Error reading response body: ", err)
-	//	ch <- 0
-	//	return
-	//}
-	//ch <- resp.StatusCode
-	//log.Println("Response status code:", resp.Status)
-	//log.Println("Response body:", string(body))
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("Error reading response body: ", err)
+		ch <- 0
+		return
+	}
+	ch <- resp.StatusCode
+	log.Println("Response status code:", resp.Status)
+	log.Println("Response body:", string(body))
 }
 
 func doBatchPay(body batchPayJson) {
 	payFunds(body.Uids)
-	fmt.Println("payFunds use time: ", time.Since(timeStart))
 	// call batchPayFinish when all user finish
 	ch := make(chan int)
 	uniqueId := uuid.New().String()

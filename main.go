@@ -16,7 +16,6 @@ func main() {
 		panic("load config fail: " + err.Error())
 	}
 	config.SetGlobalConfig(cfg)
-
 	s := &http.Server{
 		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:        router,
@@ -25,5 +24,4 @@ func main() {
 	if err := s.ListenAndServe(); err != nil {
 		log.Printf("Listen: %s\n", err)
 	}
-
 }

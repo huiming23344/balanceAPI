@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/huiming23344/balanceapi/config"
 	"io"
 	"log"
 	"net/http"
@@ -14,10 +15,15 @@ import (
 )
 
 func TestBatchPayOnce(t *testing.T) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Error loading config: %s", err)
+	}
+	config.SetGlobalConfig(cfg)
 	iF := []Fund{
 		{
 			Uid:    100001,
-			Amount: 1001.53,
+			Amount: 1029.53,
 		},
 	}
 	initFunds(iF)
